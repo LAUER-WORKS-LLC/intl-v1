@@ -1,0 +1,14 @@
+{
+    "connections": [
+      {
+        "name": "INTL-Aurora",
+        "driver": "PostgreSQL",
+        "username": "${env:RDS_USER}",
+        "password": "${env:RDS_PASSWORD}",
+        "database": "${env:RDS_DB}",
+        "host": "${env:RDS_HOST}",
+        "port": "${env:RDS_PORT}"
+      }
+    ]
+  }
+  
