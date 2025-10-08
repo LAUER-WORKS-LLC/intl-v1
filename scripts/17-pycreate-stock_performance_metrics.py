@@ -18,13 +18,13 @@ print("Connected to RDS")
 try:
     # Create cursor and execute schema
     cur = conn.cursor()
-    print("Executing schema creation...")
-    cur.execute(open("sql/01-create-stock_prices.sql", "r").read())
+    print("Creating stock_performance_metrics table...")
+    cur.execute(open("../sql/17-create-stock_performance_metrics.sql", "r").read())
     conn.commit()
-    print("Schema created successfully!")
+    print("Stock_performance_metrics table created successfully!")
     
 except Exception as e:
-    print(f"Error creating schema: {e}")
+    print(f"Error creating stock_performance_metrics table: {e}")
     conn.rollback()
     
 finally:
