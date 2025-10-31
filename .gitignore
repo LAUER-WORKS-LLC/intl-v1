@@ -208,8 +208,8 @@ __marimo__/
 
 # Project-specific
 # Large data files
-local_prototype/data/**/*.parquet
+01_price_analysis/data/**/*.parquet
 *.tar.gz
 # Results and outputs
-local_prototype/results/*.csv
+01_price_analysis/results/*.csv
 *.png

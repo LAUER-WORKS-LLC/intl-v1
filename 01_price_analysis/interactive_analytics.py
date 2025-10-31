@@ -1,6 +1,7 @@
 """
-INT-L Local Analytics MVP — Interactive Version
-Interactive stock analytics with customizable features and weights
+01_price_analysis — Part 1: Stock Ranking & Price Analysis
+Interactive stock ranking with customizable technical analysis metrics
+Part 1 of 4-part INT-L Analytics Series
 """
 
 import pandas as pd

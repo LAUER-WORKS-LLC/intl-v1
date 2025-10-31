@@ -15,23 +15,25 @@ Interactive stock analytics system with customizable features and weights.
 
 1. **Download Data** (first time only):
    ```bash
+   cd 01_price_analysis
    python download_data.py
    ```
 
-2. **Run Interactive Analysis**:
+2. **Run Interactive Analysis** (Part 1 - Price Analysis & Stock Ranking):
    ```bash
+   cd 01_price_analysis
    python interactive_analytics.py
    ```
 
 ## File Structure
 
 ```
-local_prototype/
+01_price_analysis/
 ├── data/
 │   └── daily/           # Stock data (parquet files)
 ├── results/             # Analysis outputs
 ├── analytics_engine_local.py    # Core analytics engine
-├── interactive_analytics.py     # Main interactive application
+├── interactive_analytics.py     # Main interactive application (Part 1 of 4-part series)
 ├── download_data.py            # Data downloader
 └── README.md
 ```
