@@ -1,81 +1,101 @@
-# INT-L v1.0
-Comprehensive Financial Data Platform with User Portfolio Management and Analyst Tools
+# INT-L Local Analytics MVP
 
-## 🏗️ Database Architecture
+Interactive stock analytics system with customizable features and weights.
 
-### User-Centric Tables (Portfolio Management)
-- **`users`** - User accounts and authentication
-- **`user_deposits`** - Deposit transaction history
-- **`bundles`** - Pre-defined investment bundles
-- **`bundle_allocations`** - Hard-set allocations within bundles
-- **`bundle_allocation_history`** - Bundle allocation versioning
-- **`user_portfolio_allocations`** - User's chosen bundle allocations
-- **`user_portfolio_history`** - Complete portfolio change audit trail
-- **`bundle_performance`** - Calculated bundle NAV over time
-- **`user_portfolio_performance`** - User's total portfolio performance
+## Features
 
-### Analyst-Centric Tables (Market Data & Analysis)
-- **`stocks`** - Master stock registry (NYSE universe)
-- **`stock_prices_daily`** - Daily OHLCV data for all stocks
-- **`stock_prices_intraday`** - Intraday price data
-- **`macro_indicators`** - Economic indicators from FRED
-- **`macro_indicator_metadata`** - FRED series information
-- **`sec_filings`** - SEC filing tracking (10-K, 10-Q, 8-K)
-- **`corporate_events`** - Company event calendar
-- **`stock_performance_metrics`** - Pre-calculated performance data
-- **`sector_performance`** - Sector-level aggregation
+- **Interactive Configuration**: Choose which features to include and their weights
+- **Preset Variants**: Quick setup options for different strategies
+- **Normalization Options**: Customizable data preprocessing
+- **Multi-Category Analysis**: Price, Volume, Volatility, and Momentum
+- **Local Data Storage**: Efficient parquet file storage
+- **Real-time API Integration**: Polygon.io data fetching
 
-## 🚀 Quick Start
+## Quick Start
 
-### Prerequisites
-- Aurora PostgreSQL database configured
-- Python 3.7+ with required packages
-- Environment variables set in `.env` file
+1. **Download Data** (first time only):
+   ```bash
+   python download_data.py
+   ```
 
-### Database Setup
-1. **Test Connection**: `python scripts/test_connection.py`
-2. **Create All Tables**: `python scripts/create_all_tables.py`
-3. **Verify Schema**: `python scripts/verify_schema.py`
+2. **Run Interactive Analysis**:
+   ```bash
+   python interactive_analytics.py
+   ```
 
-### Scripts Overview
-- **`test_connection.py`** - Database connectivity testing
-- **`create_all_tables.py`** - Master script to create all tables
-- **`verify_schema.py`** - Complete database schema verification
-- **Individual table scripts** - 1-to-1 SQL/Python file mapping
+## File Structure
 
-## 📁 Project Structure
 ```
-intl-v1/
-├── scripts/                    # Python database scripts
-│   ├── test_connection.py     # Connection testing
-│   ├── create_all_tables.py   # Master table creation
-│   ├── verify_schema.py       # Schema verification
-│   └── [00-18]-pycreate-*.py  # Individual table scripts
-├── sql/                       # SQL schema files
-│   ├── 00-drop-stock_prices.sql
-│   └── [01-18]-create-*.sql   # Individual table schemas
-├── .env                       # Database credentials (not tracked)
-└── .sqltools.json            # Database connection configuration
+local_prototype/
+├── data/
+│   └── daily/           # Stock data (parquet files)
+├── results/             # Analysis outputs
+├── analytics_engine_local.py    # Core analytics engine
+├── interactive_analytics.py     # Main interactive application
+├── download_data.py            # Data downloader
+└── README.md
 ```
 
-## 🔧 Features
+## Analytics Categories
 
-### User Portfolio Management
-- Bundle-based investing with hard-set allocations
-- Complete portfolio audit trail
-- Performance tracking across all timeframes
-- User authentication and notification preferences
+### Price Features
+- **r1**: 1-day returns
+- **gap**: Opening gap percentage
+- **hl_spread**: High-low spread
+- **dist52**: Distance from 52-week range
 
-### Market Data & Analysis
-- Complete NYSE stock universe tracking
-- Daily and intraday price data
-- Macro-economic indicators integration
-- SEC filing and corporate event tracking
-- Pre-calculated performance metrics
-- Sector-level analysis
+### Volume Features
+- **vol_ratio5**: 5-day volume ratio
+- **vol_ratio20**: 20-day volume ratio
+- **obv_delta**: On-Balance Volume change
+- **mfi_proxy**: Money Flow Index proxy
 
-## 🎯 Next Steps
-- Data ingestion pipeline development
-- API integration for real-time data
-- Portfolio performance calculation engine
-- User interface development
+### Volatility Features
+- **vol_level**: Rolling volatility level
+- **vol_trend**: Volatility trend
+- **atr_pct**: Average True Range percentage
+
+### Momentum Features
+- **macd_signal_delta**: MACD signal difference
+- **slope50**: 50-day moving average slope
+- **mom10**: 10-day momentum
+- **rsi_s**: RSI score
+
+## Preset Variants
+
+### Price
+- **breakout**: Emphasizes gaps and distance from range
+- **mean_revert**: Focuses on spread and range position
+- **neutral**: Balanced approach
+
+### Volume
+- **accumulation**: Emphasizes OBV and volume trends
+- **exhaustion**: Focuses on volume spikes
+- **quiet**: Emphasizes low-volume periods
+
+### Volatility
+- **expansion**: Focuses on volatility increases
+- **stability**: Emphasizes low volatility
+
+### Momentum
+- **trend_follow**: Emphasizes MACD and slope
+- **mean_revert**: Focuses on RSI and momentum
+- **pullback_in_uptrend**: Balanced momentum approach
+
+## Usage
+
+The interactive system will guide you through:
+
+1. **Feature Selection**: Choose which features to include
+2. **Weight Assignment**: Set custom weights or use presets
+3. **Normalization**: Configure data preprocessing
+4. **Category Weighting**: Balance between price, volume, volatility, momentum
+5. **Results**: View ranked tickers and save outputs
+
+## Output
+
+Results include:
+- Individual category scores (price, volume, volatility, momentum)
+- Final blended score
+- Ranked ticker list
+- Optional CSV export

@@ -1,0 +1,38 @@
+# Weekly Breakout Prediction Experiment Requirements
+
+# Core data processing
+pandas>=1.5.0
+numpy>=1.21.0
+pyarrow>=10.0.0
+
+# Machine learning
+scikit-learn>=1.1.0
+xgboost>=1.6.0
+optuna>=3.0.0
+
+# Data sources
+yfinance>=0.2.0
+requests>=2.28.0
+
+# Parallel processing
+joblib>=1.2.0
+
+# Visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# System monitoring
+psutil>=5.9.0
+
+# Configuration
+PyYAML>=6.0
+
+# Progress tracking
+tqdm>=4.64.0
+
+# Statistical analysis
+scipy>=1.9.0
+
+# Optional: For advanced optimization
+# hyperopt>=0.2.7
+# scikit-optimize>=0.9.0
