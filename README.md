@@ -1,6 +1,10 @@
-# INT-L Local Analytics MVP
+# INT-L Analytics — 4-Part Series
 
-Interactive stock analytics system with customizable features and weights.
+A comprehensive stock analytics system with four integrated modules:
+1. **Price Analysis** — Technical analysis and stock ranking
+2. **Sentiment Analysis** — News and social media sentiment (NEW)
+3. Part 3 — (TBD)
+4. Part 4 — (TBD)
 
 ## Features
 
@@ -13,29 +17,55 @@ Interactive stock analytics system with customizable features and weights.
 
 ## Quick Start
 
+### Part 1: Price Analysis
 1. **Download Data** (first time only):
    ```bash
    cd 01_price_analysis
    python download_data.py
    ```
 
-2. **Run Interactive Analysis** (Part 1 - Price Analysis & Stock Ranking):
+2. **Run Interactive Analysis**:
    ```bash
    cd 01_price_analysis
    python interactive_analytics.py
    ```
 
+### Part 2: Sentiment Analysis
+1. **Install Dependencies**:
+   ```bash
+   cd 02_sentiment_analysis
+   pip install -r requirements.txt
+   ```
+
+2. **Configure API Keys** (optional):
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
+
+3. **Run Sentiment Analysis**:
+   ```bash
+   cd 02_sentiment_analysis
+   python interactive_sentiment.py
+   ```
+
 ## File Structure
 
 ```
-01_price_analysis/
-├── data/
-│   └── daily/           # Stock data (parquet files)
-├── results/             # Analysis outputs
-├── analytics_engine_local.py    # Core analytics engine
-├── interactive_analytics.py     # Main interactive application (Part 1 of 4-part series)
-├── download_data.py            # Data downloader
+01_price_analysis/          # Part 1: Price Analysis & Stock Ranking
+├── interactive_analytics.py
+├── analytics_engine_local.py
+├── download_data.py
 └── README.md
+
+02_sentiment_analysis/      # Part 2: Sentiment Analysis (NEW)
+├── interactive_sentiment.py
+├── sentiment_engine.py
+├── data_collector.py
+└── README.md
+
+scripts/                    # Database schema scripts
+sql/                        # SQL schema definitions
 ```
 
 ## Analytics Categories

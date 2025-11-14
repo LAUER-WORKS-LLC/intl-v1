@@ -1,0 +1,18 @@
+# GARCH + Monte Carlo Combined Model Requirements
+
+# Core data processing
+pandas>=1.5.0
+numpy>=1.21.0
+
+# GARCH modeling
+arch>=5.0.0
+
+# Data fetching
+yfinance>=0.2.0
+
+# Visualization
+matplotlib>=3.5.0
+
+# Statistical functions
+scipy>=1.9.0
+

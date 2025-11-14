@@ -1,0 +1,42 @@
+Options Chain Summary for RKLB
+============================================================
+
+Total Call Options: 508
+Fetch Date: 2025-11-13 11:22:49
+
+Expiration Dates: 12 unique dates
+Date Range: 2025-11-14 00:00:00 to 2028-01-21 00:00:00
+
+Strike Price Range: $0.50 to $110.00
+
+Delta:
+  Mean: 0.416209
+  Min: 0.000000
+  Max: 1.000000
+  Count (non-null): 506/508
+
+Gamma:
+  Mean: 0.020554
+  Min: 0.000000
+  Max: 3.112486
+  Count (non-null): 506/508
+
+Theta:
+  Mean: -0.001931
+  Min: -0.016555
+  Max: -0.000000
+  Count (non-null): 506/508
+
+Implied volatility:
+  Mean: 1.341879
+  Min: 0.000000
+  Max: 13.031252
+  Count (non-null): 508/508
+
+Total Volume: 45,600
+Average Volume per Contract: 89.94
+Contracts with Volume > 0: 507
+
+Total Open Interest: 579,895
+Average Open Interest per Contract: 1141.53
+Contracts with OI > 0: 504

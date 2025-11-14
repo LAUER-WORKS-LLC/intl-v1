@@ -13,8 +13,11 @@ from datetime import datetime, date
 import os
 import gc
 import psutil
+import logging
+import json
+from pathlib import Path
 from analytics_engine_local import (
-    DataSourceLocal, compute_features_daily, final_score,
+    DataSourceLocal, compute_features_daily, compute_advanced_features, final_score,
     BlendOption, FinalWeights, NormCfg, price_blend, volume_blend, 
     volatility_blend, momentum_blend
 )
@@ -159,14 +162,17 @@ def load_and_process_batch(tickers, start_date, end_date, local_dir, batch_size=
             
             # Process features for this batch
             batch_df = compute_features_daily(batch_df)
+            batch_df = compute_advanced_features(batch_df)
             
             # Store results
             all_results.append(batch_df)
             print(f"✓ Batch {batch_count} complete: {len(batch_df)} records")
             
-            # Clean up
+            # Clean up batch data more aggressively
             del batch_df
-            gc.collect()
+            # Force garbage collection multiple times to ensure cleanup
+            for _ in range(2):
+                gc.collect()
             
         except Exception as e:
             print(f"❌ Error processing batch {batch_count}: {str(e)}")
@@ -179,9 +185,17 @@ def load_and_process_batch(tickers, start_date, end_date, local_dir, batch_size=
     print(f"\n🔄 Combining {len(all_results)} batches...")
     final_df = pd.concat(all_results, ignore_index=True)
     
-    # Final cleanup
+    # Final cleanup - more aggressive
     del all_results
-    gc.collect()
+    # Force multiple GC cycles to free memory
+    for _ in range(3):
+        gc.collect()
+    
+    # Show memory after combining
+    memory_percent = check_memory()
+    if memory_percent > 90:
+        print(f"⚠️  Warning: Memory still high after processing ({memory_percent:.1f}%)")
+        print("   Consider reducing batch_size or processing fewer tickers")
     
     return final_df
 
@@ -254,10 +268,46 @@ def choose_exchanges():
         except Exception as e:
             print(f"❌ Error: {e}")
 
+def get_last_run_dates():
+    """Get date range from most recent run log"""
+    log_dir = Path("results")
+    if not log_dir.exists():
+        return None, None
+    
+    # Look for log files
+    log_files = sorted(log_dir.glob("run_*.log"), reverse=True)
+    if not log_files:
+        return None, None
+    
+    # Read the most recent log file
+    try:
+        with open(log_files[0], 'r') as f:
+            for line in f:
+                if 'Date range:' in line:
+                    # Extract dates from log line
+                    parts = line.split('Date range:')[1].strip()
+                    if ' to ' in parts:
+                        start, end = parts.split(' to ')
+                        return start.strip(), end.strip()
+    except Exception:
+        pass
+    
+    return None, None
+
 def choose_date_range():
-    """Interactive date range selection"""
+    """Interactive date range selection with option to reuse last run"""
     print("\n📅 DATE RANGE SELECTION")
     print("=" * 30)
+    
+    # Check for previous run dates
+    last_start, last_end = get_last_run_dates()
+    if last_start and last_end:
+        print(f"Last run used: {last_start} to {last_end}")
+        reuse = input("Reuse these dates? (y/n, default: y): ").strip().lower()
+        if reuse != 'n':
+            print(f"✓ Using date range: {last_start} to {last_end}")
+            return last_start, last_end
+    
     print("Date format: YYYY-MM-DD (e.g., 2022-01-01)")
     print("Leave blank for defaults")
     
@@ -392,63 +442,145 @@ def interactive_run():
         print(f"❌ Error loading data: {str(e)}")
         return
     
-    # Interactive configuration
+    # Hardcoded configuration
     print("\n" + "="*60)
-    print("🎛️  INTERACTIVE CONFIGURATION")
+    print("⚙️  HARDCODED CONFIGURATION")
     print("="*60)
     
-    # Category configuration
-    price_opt = interactive_category(
-        "Price", 
-        ["r1", "gap", "hl_spread", "dist52"],
-        ["breakout", "mean_revert", "neutral"]
-    )
+    print("\n📊 Price Category Preset: persistent_trend (default)")
+    print("   Formula: 0.25·r21_skip5 + 0.35·r63_skip5 + 0.15·r252_skip5 + 0.25·slope50_atr")
+    print("   Multiplied by: clamp(1.5·r2, 0–1) × clamp(1.2·er, 0–1)")
+    print("   NormCfg: winsorize=✅, clip_z3=✅, exp_decay=❌")
     
-    volume_opt = interactive_category(
-        "Volume", 
-        ["vol_ratio5", "vol_ratio20", "obv_delta", "mfi_proxy"],
-        ["accumulation", "exhaustion", "quiet"]
-    )
+    print("\n📊 Volume Category: Hardcoded")
+    print("   Formula: 0.5·rank(log_vol_ratio) + 0.5·rank(obv_slope_norm)")
+    print("   NormCfg: winsorize=✅, clip_z3=✅, exp_decay=✅")
     
-    vol_opt = interactive_category(
-        "Volatility", 
-        ["vol_level", "vol_trend", "atr_pct"],
-        ["expansion", "stability"]
-    )
+    print("\n📊 Volatility Category: Hardcoded")
+    print("   Formula: -rank(ATR%) - 0.5·rank(vol_of_vol) + 0.5·rank(max(0, vol_trend))")
+    print("   NormCfg: winsorize=✅, clip_z3=✅, exp_decay=❌")
     
-    momo_opt = interactive_category(
-        "Momentum", 
-        ["macd_signal_delta", "slope50", "mom10", "rsi_s"],
-        ["trend_follow", "mean_revert", "pullback_in_uptrend"]
-    )
+    print("\n📊 Momentum Category: Hardcoded")
+    print("   Formula: 0.6·rank(R63_skip5) + 0.4·rank(R252_skip5)")
+    print("   NormCfg: winsorize=✅, clip_z3=✅, exp_decay=❌")
     
-    # Category weighting
-    print(f"\n{'='*20} CATEGORY WEIGHTING {'='*20}")
-    print("Assign weights for each category (should sum to ~1.0):")
+    print("\n📊 Final Category Weights:")
+    print("   Price: 0.40, Momentum: 0.30, Volume: 0.20, Volatility: 0.10")
     
-    wp = float(input("   Weight for PRICE: "))
-    wv = float(input("   Weight for VOLUME: "))
-    ws = float(input("   Weight for VOLATILITY: "))
-    wm = float(input("   Weight for MOMENTUM: "))
-    
-    # Normalize weights
-    total_weight = wp + wv + ws + wm
-    if total_weight > 0:
-        wp, wv, ws, wm = wp/total_weight, wv/total_weight, ws/total_weight, wm/total_weight
-    
-    weights = FinalWeights(price=wp, volume=wv, volatility=ws, momentum=wm)
+    # Ensure advanced features are computed
+    if 'r21_skip5' not in df.columns:
+        print(f"\n🔧 Computing advanced features...")
+        df = compute_advanced_features(df)
     
     # Compute scores
     print(f"\n🧮 Computing scores...")
-    df["price_score"] = price_blend(df, price_opt)
-    df["volume_score"] = volume_blend(df, volume_opt)
-    df["vol_score"] = volatility_blend(df, vol_opt)
-    df["momo_score"] = momentum_blend(df, momo_opt)
-    df["final_score"] = final_score(df, price_opt, volume_opt, vol_opt, momo_opt, weights)
+    
+    # Check universe filter stats before scoring
+    from analytics_engine_local import apply_universe_filter, MIN_PRICE, MIN_DOLLAR_VOLUME
+    universe_mask = apply_universe_filter(df, return_mask=True)
+    filtered_count = universe_mask.sum()
+    total_count = len(df)
+    unique_filtered = df[universe_mask]['ticker'].nunique() if filtered_count > 0 else 0
+    unique_total = df['ticker'].nunique()
+    
+    print(f"   Universe filter: {filtered_count:,}/{total_count:,} rows ({filtered_count/total_count*100:.1f}%)")
+    print(f"   Unique tickers: {unique_filtered}/{unique_total} pass filter ({unique_filtered/unique_total*100:.1f}%)")
+    
+    df["price_score"] = price_blend(df)
+    df["volume_score"] = volume_blend(df)
+    df["vol_score"] = volatility_blend(df)
+    df["momo_score"] = momentum_blend(df)
+    df["final_score"] = final_score(df)
+    
+    # Force garbage collection after scoring to free memory
+    gc.collect()
+    
+    # Diagnostic: Check why tickers got zeros
+    print(f"\n🔍 DIAGNOSTIC: Analyzing zero scores...")
+    zero_score_tickers = df.groupby("ticker")["final_score"].mean()
+    zero_score_tickers = zero_score_tickers[zero_score_tickers == 0.0].index.tolist()
+    
+    if zero_score_tickers:
+        print(f"   Found {len(zero_score_tickers)} tickers with zero scores")
+        
+        # Check universe filter reasons
+        sample_tickers = zero_score_tickers[:10]  # Check first 10
+        print(f"\n   Sample analysis (first 10):")
+        for ticker in sample_tickers:
+            ticker_data = df[df['ticker'] == ticker]
+            if len(ticker_data) == 0:
+                print(f"      {ticker}: No data")
+                continue
+            
+            # Check price filter
+            min_price = ticker_data['close'].min() if 'close' in ticker_data.columns else None
+            price_passed = min_price >= 5.0 if min_price is not None else False
+            
+            # Check volume filter
+            if 'dollar_volume_median' in ticker_data.columns:
+                max_dollar_vol = ticker_data['dollar_volume_median'].max()
+            else:
+                # Calculate dollar volume median manually
+                dollar_vol = ticker_data['close'] * ticker_data['volume']
+                max_dollar_vol = dollar_vol.rolling(20).median().max() if len(dollar_vol) > 0 else 0
+            volume_passed = max_dollar_vol >= 3_000_000 if max_dollar_vol is not None and not pd.isna(max_dollar_vol) else False
+            
+            # Check advanced features
+            has_r21 = 'r21_skip5' in ticker_data.columns and ticker_data['r21_skip5'].notna().any()
+            has_r63 = 'r63_skip5' in ticker_data.columns and ticker_data['r63_skip5'].notna().any()
+            has_r252 = 'r252_skip5' in ticker_data.columns and ticker_data['r252_skip5'].notna().any()
+            has_features = has_r21 and has_r63 and has_r252
+            
+            reasons = []
+            if not price_passed:
+                reasons.append(f"price < $5 (min: ${min_price:.2f})" if min_price else "no price data")
+            if not volume_passed:
+                reasons.append(f"vol < $3M (max: ${max_dollar_vol:,.0f})" if max_dollar_vol else "no volume data")
+            if not has_features:
+                reasons.append("missing advanced features")
+            
+            reason_str = ", ".join(reasons) if reasons else "unknown"
+            print(f"      {ticker}: {reason_str}")
+        
+        if len(zero_score_tickers) > 10:
+            print(f"   ... and {len(zero_score_tickers) - 10} more tickers")
     
     # Summarize per ticker
+    # Only average scores for dates where universe filter passes (non-zero scores)
     print(f"\n{'='*20} RESULTS SUMMARY {'='*20}")
-    summary = df.groupby("ticker")[["price_score", "volume_score", "vol_score", "momo_score", "final_score"]].mean().sort_values("final_score", ascending=False)
+    
+    # Create a mask for dates where universe filter passes (any non-zero category score)
+    # This ensures we only average dates where tickers actually got scores
+    universe_passed_mask = (
+        (df["price_score"] != 0) | 
+        (df["volume_score"] != 0) | 
+        (df["vol_score"] != 0) | 
+        (df["momo_score"] != 0)
+    )
+    
+    # Filter to only dates where universe filter passed
+    df_scored = df[universe_passed_mask].copy()
+    
+    if len(df_scored) > 0:
+        # Average only non-zero scores
+        summary = df_scored.groupby("ticker")[["price_score", "volume_score", "vol_score", "momo_score", "final_score"]].mean().sort_values("final_score", ascending=False)
+        
+        # For tickers with no scored dates, add them with zeros
+        all_tickers = df["ticker"].unique()
+        scored_tickers = summary.index.tolist()
+        missing_tickers = set(all_tickers) - set(scored_tickers)
+        if missing_tickers:
+            zero_rows = pd.DataFrame({
+                "price_score": 0.0,
+                "volume_score": 0.0,
+                "vol_score": 0.0,
+                "momo_score": 0.0,
+                "final_score": 0.0
+            }, index=list(missing_tickers))
+            summary = pd.concat([summary, zero_rows]).sort_values("final_score", ascending=False)
+    else:
+        # No tickers passed the universe filter - return all zeros
+        summary = df.groupby("ticker")[["price_score", "volume_score", "vol_score", "momo_score", "final_score"]].mean().sort_values("final_score", ascending=False)
     
     print("\n📈 AVERAGE SCORES BY TICKER:")
     print("-" * 80)
@@ -458,12 +590,123 @@ def interactive_run():
     for i, (ticker, row) in enumerate(summary.iterrows(), 1):
         print(f"{i:<4} {ticker:<8} {row['price_score']:<8.3f} {row['volume_score']:<8.3f} {row['vol_score']:<8.3f} {row['momo_score']:<8.3f} {row['final_score']:<8.3f}")
     
-    # Save results
-    save = input(f"\n💾 Save results to CSV? (y/n): ").lower()
-    if save == "y":
-        os.makedirs("results", exist_ok=True)
-        summary.to_csv("results/final_scores.csv")
-        print("✓ Saved to results/final_scores.csv")
+    # Auto-save results with timestamp
+    os.makedirs("results", exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_filename = f"results/final_scores_{timestamp}.csv"
+    log_filename = f"results/run_{timestamp}.log"
+    
+    try:
+        summary.to_csv(csv_filename)
+        print(f"\n💾 Auto-saved results to {csv_filename}")
+    except Exception as e:
+        print(f"❌ Error saving CSV: {str(e)}")
+    
+    # Create log file with run information
+    try:
+        with open(log_filename, 'w') as log_file:
+            log_file.write("=" * 80 + "\n")
+            log_file.write("INT-L ANALYTICS RUN LOG\n")
+            log_file.write("=" * 80 + "\n\n")
+            log_file.write(f"Run timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            log_file.write(f"Date range: {start_date} to {end_date}\n")
+            log_file.write(f"Exchanges: {exchange_description}\n")
+            log_file.write(f"Tickers analyzed: {len(tickers)}\n")
+            log_file.write(f"Total records: {len(df):,}\n")
+            log_file.write(f"Unique tickers: {df['ticker'].nunique()}\n\n")
+            
+            # Universe filter stats
+            universe_mask = apply_universe_filter(df, return_mask=True)
+            filtered_count = universe_mask.sum()
+            total_count = len(df)
+            unique_filtered = df[universe_mask]['ticker'].nunique() if filtered_count > 0 else 0
+            unique_total = df['ticker'].nunique()
+            
+            log_file.write("UNIVERSE FILTER STATS:\n")
+            log_file.write(f"  Rows passing filter: {filtered_count:,}/{total_count:,} ({filtered_count/total_count*100:.1f}%)\n")
+            log_file.write(f"  Tickers passing filter: {unique_filtered}/{unique_total} ({unique_filtered/unique_total*100:.1f}%)\n\n")
+            
+            # Score statistics
+            log_file.write("SCORE STATISTICS:\n")
+            log_file.write(f"  Total tickers with scores: {len(summary)}\n")
+            log_file.write(f"  Non-zero final scores: {(summary['final_score'] != 0).sum()}\n")
+            log_file.write(f"  Positive final scores: {(summary['final_score'] > 0).sum()}\n")
+            log_file.write(f"  Negative final scores: {(summary['final_score'] < 0).sum()}\n")
+            log_file.write(f"  Zero final scores: {(summary['final_score'] == 0).sum()}\n\n")
+            
+            if len(summary[summary['final_score'] != 0]) > 0:
+                log_file.write("SCORE DISTRIBUTION (non-zero only):\n")
+                non_zero = summary[summary['final_score'] != 0]['final_score']
+                log_file.write(f"  Min: {non_zero.min():.6f}\n")
+                log_file.write(f"  Max: {non_zero.max():.6f}\n")
+                log_file.write(f"  Mean: {non_zero.mean():.6f}\n")
+                log_file.write(f"  Median: {non_zero.median():.6f}\n")
+                log_file.write(f"  Std: {non_zero.std():.6f}\n\n")
+            
+            # Top 20 tickers
+            log_file.write("TOP 20 TICKERS:\n")
+            log_file.write("-" * 80 + "\n")
+            top_20 = summary.head(20)
+            for i, (ticker, row) in enumerate(top_20.iterrows(), 1):
+                log_file.write(f"{i:>3}. {ticker:<8} Price:{row['price_score']:>8.3f} Volume:{row['volume_score']:>8.3f} "
+                             f"Vol:{row['vol_score']:>8.3f} Momo:{row['momo_score']:>8.3f} Final:{row['final_score']:>8.3f}\n")
+            log_file.write("\n")
+            
+            # Configuration
+            log_file.write("CONFIGURATION:\n")
+            log_file.write("  Price preset: persistent_trend\n")
+            log_file.write("  Category weights: Price=0.40, Momentum=0.30, Volume=0.20, Volatility=0.10\n")
+            log_file.write(f"  Universe filter: Price >= $5.00, Dollar Volume >= $3M\n\n")
+            
+            # Zero score diagnostics
+            zero_score_tickers = df.groupby("ticker")["final_score"].mean()
+            zero_score_tickers = zero_score_tickers[zero_score_tickers == 0.0].index.tolist()
+            if zero_score_tickers:
+                log_file.write(f"ZERO SCORE DIAGNOSTICS:\n")
+                log_file.write(f"  Tickers with zero scores: {len(zero_score_tickers)}\n")
+                log_file.write(f"  Sample reasons (first 10):\n")
+                sample_tickers = zero_score_tickers[:10]
+                for ticker in sample_tickers:
+                    ticker_data = df[df['ticker'] == ticker]
+                    if len(ticker_data) == 0:
+                        log_file.write(f"    {ticker}: No data\n")
+                        continue
+                    
+                    min_price = ticker_data['close'].min() if 'close' in ticker_data.columns else None
+                    price_passed = min_price >= 5.0 if min_price is not None else False
+                    
+                    if 'dollar_volume_median' in ticker_data.columns:
+                        max_dollar_vol = ticker_data['dollar_volume_median'].max()
+                    else:
+                        dollar_vol = ticker_data['close'] * ticker_data['volume']
+                        max_dollar_vol = dollar_vol.rolling(20).median().max() if len(dollar_vol) > 0 else 0
+                    volume_passed = max_dollar_vol >= 3_000_000 if max_dollar_vol is not None and not pd.isna(max_dollar_vol) else False
+                    
+                    has_r21 = 'r21_skip5' in ticker_data.columns and ticker_data['r21_skip5'].notna().any()
+                    has_r63 = 'r63_skip5' in ticker_data.columns and ticker_data['r63_skip5'].notna().any()
+                    has_r252 = 'r252_skip5' in ticker_data.columns and ticker_data['r252_skip5'].notna().any()
+                    has_features = has_r21 and has_r63 and has_r252
+                    
+                    reasons = []
+                    if not price_passed:
+                        reasons.append(f"price < $5 (min: ${min_price:.2f})" if min_price else "no price data")
+                    if not volume_passed:
+                        reasons.append(f"vol < $3M (max: ${max_dollar_vol:,.0f})" if max_dollar_vol else "no volume data")
+                    if not has_features:
+                        reasons.append("missing advanced features")
+                    
+                    reason_str = ", ".join(reasons) if reasons else "unknown"
+                    log_file.write(f"    {ticker}: {reason_str}\n")
+                log_file.write("\n")
+            
+            # Files
+            log_file.write("OUTPUT FILES:\n")
+            log_file.write(f"  CSV: {csv_filename}\n")
+            log_file.write(f"  Log: {log_filename}\n")
+        
+        print(f"📝 Saved run log to {log_filename}")
+    except Exception as e:
+        print(f"⚠️  Could not save log file: {str(e)}")
     
     print(f"\n✅ Analysis Complete!")
     print(f"📊 Analyzed {len(tickers)} tickers with {len(df)} data points")
